@@ -159,6 +159,7 @@ static void sock_map_del_link(struct sock *sk,
 				verdict_stop = true;
 			list_del(&link->list);
 			sk_psock_free_link(link);
+			break;
 		}
 	}
 	spin_unlock_bh(&psock->link_lock);
@@ -411,12 +412,11 @@ static void *sock_map_lookup_sys(struct bpf_map *map, void *key)
 static int __sock_map_delete(struct bpf_stab *stab, struct sock *sk_test,
 			     struct sock **psk)
 {
-	struct sock *sk;
+	struct sock *sk = NULL;
 	int err = 0;
 
 	spin_lock_bh(&stab->lock);
-	sk = *psk;
-	if (!sk_test || sk_test == sk)
+	if (!sk_test || sk_test == *psk)
 		sk = xchg(psk, NULL);
 
 	if (likely(sk))
@@ -1758,6 +1758,10 @@ static int sock_map_link_update_prog(struct bpf_link *link,
 	if (link->prog->type != prog->type ||
 	    link->prog->expected_attach_type != prog->expected_attach_type) {
 		ret = -EINVAL;
+		goto out;
+	}
+	if (!sockmap_link->map) {
+		ret = -ENOLINK;
 		goto out;
 	}
 
